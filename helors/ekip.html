@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HELIOS — Ekip & İletişim</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@200;300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #04040f; --bg2: #080820;
+    --border: rgba(100,140,255,0.12); --border2: rgba(100,140,255,0.28);
+    --accent: #4a9eff;
+    --text: #d0d8f0; --muted: rgba(180,200,255,0.45);
+    --ok: #3ddc84;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Exo 2', sans-serif;
+    --display: 'Orbitron', sans-serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+  #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+
+  #top-bar {
+    height: 52px; min-height: 52px;
+    background: rgba(4,4,15,0.97); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 32px; gap: 20px; z-index: 10;
+  }
+  .tb-title { font-family: var(--display); font-size: 11px; letter-spacing: 0.2em; color: #fff; }
+  .tb-sep { width: 1px; height: 20px; background: var(--border); }
+  .tb-sub { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 0.12em; }
+  .live-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ok); animation: blink 2s ease-in-out infinite; margin-left: auto; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  #content { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 32px; gap: 28px; overflow: hidden; }
+
+  .page-header { text-align: center; }
+  .page-tag {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.25em; color: var(--accent);
+    text-transform: uppercase; display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 10px;
+  }
+  .page-tag::before, .page-tag::after { content: ''; display: block; width: 30px; height: 1px; background: var(--accent); opacity: 0.4; }
+  .page-title { font-family: var(--display); font-size: clamp(20px, 2.5vw, 30px); font-weight: 700; color: #fff; letter-spacing: 0.1em; }
+
+  #cards { display: flex; gap: 14px; align-items: stretch; width: 100%; max-width: 1100px; }
+
+  .member-card {
+    flex: 1; position: relative; overflow: hidden;
+    background: rgba(8,8,32,0.8); border: 1px solid var(--border); border-radius: 8px;
+    padding: 24px 20px 20px; display: flex; flex-direction: column; gap: 12px;
+    transition: all 0.35s ease;
+  }
+  .member-card::after {
+    content: ''; position: absolute; top: 0; right: 0; width: 40px; height: 40px;
+    border-top: 1px solid var(--accent); border-right: 1px solid var(--accent);
+    opacity: 0.3; border-radius: 0 8px 0 0; transition: opacity 0.35s;
+  }
+  .member-card:hover { border-color: var(--border2); transform: translateY(-4px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+  .member-card:hover::after { opacity: 0.7; }
+
+  /* Kart renkleri */
+  .c1 { --c: #4a9eff; } .c2 { --c: #3ddc84; } .c3 { --c: #ef476f; } .c4 { --c: #9f7aea; } .c5 { --c: #ffd166; }
+
+  .card-num { position: absolute; top: 14px; left: 16px; font-family: var(--mono); font-size: 8px; color: var(--border2); }
+
+  .avatar-wrap { display: flex; align-items: center; gap: 14px; }
+  .avatar {
+    width: 52px; height: 52px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--c); display: flex; align-items: center; justify-content: center;
+    font-family: var(--display); font-size: 15px; font-weight: 700;
+    color: var(--c); background: rgba(0,0,0,0.4);
+    box-shadow: 0 0 16px color-mix(in srgb, var(--c) 25%, transparent);
+    position: relative;
+  }
+  .avatar-status {
+    position: absolute; bottom: 1px; right: 1px; width: 10px; height: 10px;
+    border-radius: 50%; background: var(--c); border: 2px solid var(--bg2);
+    box-shadow: 0 0 6px var(--c);
+  }
+  .member-name { font-family: var(--display); font-size: 12px; font-weight: 700; color: #fff; letter-spacing: 0.05em; }
+
+  .divider { height: 1px; background: linear-gradient(90deg, var(--c), transparent); opacity: 0.4; }
+
+  .member-bio { font-size: 11px; line-height: 2; color: var(--muted); font-weight: 300; flex: 1; }
+  .bio-line { display: flex; align-items: center; gap: 7px; }
+  .bio-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--c); opacity: 0.7; flex-shrink: 0; }
+
+  /* ── BUTONLAR ── */
+  .btn-row { display: flex; align-items: center; border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--c) 6%, transparent); }
+  .btn-mail {
+    flex: 1; display: flex; align-items: center; gap: 7px;
+    padding: 8px 10px; text-decoration: none;
+    font-family: var(--mono); font-size: 8px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--c); transition: background 0.2s;
+    white-space: nowrap; overflow: hidden;
+  }
+  .btn-mail:hover { background: color-mix(in srgb, var(--c) 12%, transparent); }
+  .btn-copy {
+    flex-shrink: 0; padding: 8px 10px; cursor: pointer;
+    border-left: 1px solid color-mix(in srgb, var(--c) 25%, transparent);
+    font-size: 13px; color: var(--c); transition: background 0.2s;
+    background: transparent; border-top: none; border-right: none; border-bottom: none;
+  }
+  .btn-copy:hover { background: color-mix(in srgb, var(--c) 18%, transparent); }
+
+  .btn-linkedin {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px; text-decoration: none;
+    border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); border-radius: 4px;
+    background: color-mix(in srgb, var(--c) 6%, transparent);
+    font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--c); transition: all 0.2s;
+  }
+  .btn-linkedin:hover { background: color-mix(in srgb, var(--c) 14%, transparent); border-color: var(--c); }
+
+  .contact-wrap { display: flex; flex-direction: column; gap: 7px; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+    color: var(--ok); background: rgba(61,220,132,0.12);
+    border: 1px solid rgba(61,220,132,0.3); border-radius: 4px;
+    padding: 8px 20px; z-index: 999; display: none; white-space: nowrap;
+  }
+
+  #contact-footer {
+    display: flex; align-items: center; gap: 20px; padding: 14px 24px;
+    border-top: 1px solid var(--border); background: rgba(4,4,15,0.6); flex-shrink: 0;
+  }
+  .cf-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
+  .cf-val { font-family: var(--mono); font-size: 10px; color: var(--accent); }
+  .cf-sep { width: 1px; height: 16px; background: var(--border); }
+  .cf-note { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-left: auto; }
+
+  .member-card { opacity: 0; transform: translateY(20px); animation: cardIn 0.6s ease forwards; }
+  .c1 { animation-delay: 0.05s; } .c2 { animation-delay: 0.15s; } .c3 { animation-delay: 0.25s; } .c4 { animation-delay: 0.35s; } .c5 { animation-delay: 0.45s; }
+  @keyframes cardIn { to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="top-bar">
+    <div class="tb-title">HELIOS</div>
+    <div class="tb-sep"></div>
+    <div class="tb-sub">EKİP & İLETİŞİM</div>
+    <div class="tb-sep"></div>
+    <div class="live-dot"></div>
+  </div>
+
+  <div id="content">
+    <div class="page-header">
+      <div class="page-tag">Ekibimiz</div>
+      <div class="page-title">Güneş Rüzgarını İzleyenler</div>
+    </div>
+
+    <div id="cards">
+
+      <!-- KART 1 — Yahya Sönmez -->
+      <div class="member-card c1">
+        <div class="card-num">#01</div>
+        <div class="avatar-wrap">
+          <div class="avatar">YS<div class="avatar-status"></div></div>
+          <div class="member-name">Yahya Sönmez</div>
+        </div>
+        <div class="divider"></div>
+        <div class="member-bio">
+          <div class="bio-line"><div class="bio-dot"></div>Erciyes Üniversitesi</div>
+          <div class="bio-line"><div class="bio-dot"></div>Astronomi ve Uzay Bilimleri</div>
+          <div class="bio-line"><div class="bio-dot"></div>Lisans</div>
+        </div>
+        <div class="contact-wrap">
+          <div class="btn-row">
+            <a class="btn-mail" href="mailto:sonmezyahya87@gmail.com">✉ sonmezyahya87@gmail.com</a>
+            <button class="btn-copy" onclick="kopyala('sonmezyahya87@gmail.com')" title="Kopyala">⧉</button>
+          </div>
+          <a class="btn-linkedin" href="https://www.linkedin.com/in/yahya-sonmez-242764328/" target="_blank">
+            <span>in LinkedIn Profili</span><span>↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- KART 2 — İrem Akın -->
+      <div class="member-card c2">
+        <div class="card-num">#02</div>
+        <div class="avatar-wrap">
+          <div class="avatar">İA<div class="avatar-status"></div></div>
+          <div class="member-name">İrem Akın</div>
+        </div>
+        <div class="divider"></div>
+        <div class="member-bio">
+          <div class="bio-line"><div class="bio-dot"></div>Erciyes Üniversitesi</div>
+          <div class="bio-line"><div class="bio-dot"></div>Astronomi ve Uzay Bilimleri</div>
+          <div class="bio-line"><div class="bio-dot"></div>Lisans</div>
+        </div>
+        <div class="contact-wrap">
+          <div class="btn-row">
+            <a class="btn-mail" href="mailto:havvairemakin@gmail.com">✉ havvairemakin@gmail.com</a>
+            <button class="btn-copy" onclick="kopyala('havvairemakin@gmail.com')" title="Kopyala">⧉</button>
+          </div>
+          <a class="btn-linkedin" href="https://www.linkedin.com/in/h-irem-ak%C4%B1n-6aa129342/" target="_blank">
+            <span>in LinkedIn Profili</span><span>↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- KART 3 — Hamiyet R. Şimşek -->
+      <div class="member-card c3">
+        <div class="card-num">#03</div>
+        <div class="avatar-wrap">
+          <div class="avatar">HŞ<div class="avatar-status"></div></div>
+          <div class="member-name">Hamiyet R. Şimşek</div>
+        </div>
+        <div class="divider"></div>
+        <div class="member-bio">
+          <div class="bio-line"><div class="bio-dot"></div>Erciyes Üniversitesi</div>
+          <div class="bio-line"><div class="bio-dot"></div>Astronomi ve Uzay Bilimleri</div>
+          <div class="bio-line"><div class="bio-dot"></div>Lisans</div>
+        </div>
+        <div class="contact-wrap">
+          <div class="btn-row">
+            <a class="btn-mail" href="mailto:hamiyetsimsek0638@gmail.com">✉ hamiyetsimsek0638@gmail.com</a>
+            <button class="btn-copy" onclick="kopyala('hamiyetsimsek0638@gmail.com')" title="Kopyala">⧉</button>
+          </div>
+          <a class="btn-linkedin" href="https://www.linkedin.com/in/hamiyet-%C5%9Fim%C5%9Fek-9b775734b/" target="_blank">
+            <span>in LinkedIn Profili</span><span>↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- KART 4 — Kübra Öz -->
+      <div class="member-card c4">
+        <div class="card-num">#04</div>
+        <div class="avatar-wrap">
+          <div class="avatar">KÖ<div class="avatar-status"></div></div>
+          <div class="member-name">Kübra Öz</div>
+        </div>
+        <div class="divider"></div>
+        <div class="member-bio">
+          <div class="bio-line"><div class="bio-dot"></div>Erciyes Üniversitesi</div>
+          <div class="bio-line"><div class="bio-dot"></div>Astronomi ve Uzay Bilimleri</div>
+          <div class="bio-line"><div class="bio-dot"></div>Lisans</div>
+        </div>
+        <div class="contact-wrap">
+          <div class="btn-row">
+            <a class="btn-mail" href="mailto:kbrzzz76@gmail.com">✉ kbrzzz76@gmail.com</a>
+            <button class="btn-copy" onclick="kopyala('kbrzzz76@gmail.com')" title="Kopyala">⧉</button>
+          </div>
+          <a class="btn-linkedin" href="https://www.linkedin.com/in/k%C3%BCbra-%C3%B6z-3650aa318/" target="_blank">
+            <span>in LinkedIn Profili</span><span>↗</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- KART 5 — Ali İmran Tüzü -->
+      <div class="member-card c5">
+        <div class="card-num">#05</div>
+        <div class="avatar-wrap">
+          <div class="avatar">AT<div class="avatar-status"></div></div>
+          <div class="member-name">Ali İmran Tüzü</div>
+        </div>
+        <div class="divider"></div>
+        <div class="member-bio">
+          <div class="bio-line"><div class="bio-dot"></div>Erciyes Üniversitesi</div>
+          <div class="bio-line"><div class="bio-dot"></div>Astronomi ve Uzay Bilimleri</div>
+          <div class="bio-line"><div class="bio-dot"></div>Lisans</div>
+        </div>
+        <div class="contact-wrap">
+          <div class="btn-row">
+            <a class="btn-mail" href="mailto:imranalitzn@gmail.com">✉ imranalitzn@gmail.com</a>
+            <button class="btn-copy" onclick="kopyala('imranalitzn@gmail.com')" title="Kopyala">⧉</button>
+          </div>
+          <a class="btn-linkedin" href="https://www.linkedin.com/in/imrantzn/" target="_blank">
+            <span>in LinkedIn Profili</span><span>↗</span>
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="contact-footer">
+    <div class="cf-label">Kurum</div>
+    <div class="cf-sep"></div>
+    <div class="cf-val">Erciyes Üniversitesi — Astronomi ve Uzay Bilimleri</div>
+    <div class="cf-note">HELIOS · Güneş Rüzgarı İzleme Sistemi · 2025</div>
+  </div>
+
+</div>
+
+<div id="toast">✓ E-posta kopyalandı!</div>
+
+<script>
+function kopyala(email) {
+  navigator.clipboard.writeText(email).then(function() {
+    var t = document.getElementById('toast');
+    t.style.display = 'block';
+    setTimeout(function() { t.style.display = 'none'; }, 2000);
+  });
+}
+</script>
+</body>
+</html>

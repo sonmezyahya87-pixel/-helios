@@ -1,0 +1,1077 @@
+<!DOCTYPE html> <!-- Belgenin HTML5 standardında olduğunu belirtir -->
+<html lang="tr"> <!-- Sayfanın dili Türkçe -->
+<head> <!-- Sayfa ayarlarının başladığı bölüm -->
+<meta charset="UTF-8"> <!-- Türkçe karakterlerin düzgün görünmesini sağlar -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0"> <!-- Mobil uyum -->
+<title>HELIOS — Ana Sayfa</title> <!-- Sekme başlığı -->
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet"> <!-- Yazı tipleri -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script> <!-- Three.js: 3B grafik kütüphanesi -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script> <!-- Chart.js: grafik kütüphanesi - 24 saatlik veriler için -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script> <!-- EmailJS: statik yükleme - race condition önlenir -->
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; } /* Varsayılan boşlukları sıfırlar */
+
+  :root { /* CSS renk ve font değişkenleri - değiştirmek istersen buradan */
+    --bg: #04040f;        /* Ana arka plan - koyu lacivert */
+    --bg2: #080820;       /* İkinci arka plan tonu */
+    --bg3: #0c0c28;       /* Üçüncü arka plan tonu */
+    --border: rgba(100,140,255,0.12);  /* İnce kenarlık */
+    --border2: rgba(100,140,255,0.22); /* Hover kenarlığı */
+    --accent: #4a9eff;    /* Mavi vurgu rengi */
+    --accent2: #ff8c42;   /* Turuncu vurgu rengi */
+    --text: #d0d8f0;      /* Ana yazı rengi */
+    --muted: rgba(180,200,255,0.45); /* Soluk yazı rengi */
+    --ok: #3ddc84;        /* Yeşil - normal durum */
+    --warn: #ffd166;      /* Sarı - uyarı durumu */
+    --danger: #ef476f;    /* Kırmızı - kritik durum */
+    --mono: 'Share Tech Mono', monospace; /* Teknik yazı tipi */
+    --sans: 'Exo 2', sans-serif;          /* Genel yazı tipi */
+  }
+
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; } /* Tam ekran, kaydırma yok */
+
+  #app { display: flex; height: 100vh; width: 100vw; } /* 3 ana bölüm: sol panel - canvas - sağ panel */
+
+  /* ── SOL PANEL ── */
+  #left-panel {
+    width: 220px; min-width: 220px; /* Sabit genişlik */
+    border-right: 1px solid var(--border); /* Sağda ayırıcı çizgi */
+    background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%); /* Dikey renk geçişi */
+    display: flex; flex-direction: column; /* Dikey dizim */
+    padding: 20px 16px; gap: 14px; z-index: 10;
+  }
+
+  /* ── ORTA CANVAS ALANI ── */
+  #canvas-wrap { flex: 1; position: relative; overflow: hidden; } /* Kalan tüm genişliği kaplar */
+  #space-canvas { display: block; width: 100%; height: 100%; } /* Three.js canvas tam alanı doldurur */
+
+  /* ── SAĞ PANEL ── */
+  #right-panel {
+    width: 260px; min-width: 260px; /* Sol panelden biraz geniş - grafikler için */
+    border-left: 1px solid var(--border);
+    background: linear-gradient(180deg, var(--bg) 0%, var(--bg2) 100%);
+    display: flex; flex-direction: column;
+    padding: 16px 14px; gap: 10px; z-index: 10;
+    overflow-y: auto; /* İçerik taşarsa kaydırma açılır */
+  }
+
+  /* ── ÜST BAR (canvas üstünde) ── */
+  #top-bar {
+    position: absolute; top: 0; left: 0; right: 0; height: 48px; /* Canvas üzerine yapışır */
+    background: linear-gradient(180deg, rgba(4,4,15,0.9) 0%, transparent 100%); /* Üstten alta solar */
+    display: flex; align-items: center; justify-content: center; gap: 32px;
+    font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.08em;
+    z-index: 5; pointer-events: none; /* Tıklamaları geçirir */
+  }
+  #top-bar .tb-item { display: flex; align-items: center; gap: 6px; } /* Nokta + yazı */
+  #top-bar .tb-dot { width: 6px; height: 6px; border-radius: 50%; } /* Renkli küçük daire */
+
+  #alarm-banner {
+    display: none;
+    position: absolute;
+    top: 54px;
+    left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.12em;
+    padding: 7px 20px; border-radius: 3px;
+    z-index: 20;
+    white-space: nowrap;
+    pointer-events: none;
+    animation: bannerPulse 1.5s ease-in-out infinite;
+  }
+  .alarm-warn {
+    background: rgba(255,209,102,0.18);
+    color: var(--warn);
+    border: 1px solid rgba(255,209,102,0.45);
+  }
+  .alarm-danger {
+    background: rgba(239,71,111,0.18);
+    color: var(--danger);
+    border: 1px solid rgba(239,71,111,0.45);
+  }
+  @keyframes bannerPulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  /* ── ALT BAR (canvas altında) ── */
+  #bottom-bar {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 36px;
+    background: linear-gradient(0deg, rgba(4,4,15,0.9) 0%, transparent 100%);
+    display: flex; align-items: center; justify-content: center; gap: 24px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em;
+    z-index: 5; pointer-events: none;
+  }
+
+  #satellite-labels { position: absolute; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 4; }
+  .sat-label { position: absolute; font-family: var(--mono); font-size: 10px; letter-spacing: 0.05em; white-space: nowrap; pointer-events: none; transform: translate(-50%, -50%); }
+
+  /* ── UI BİLEŞENLERİ ── */
+  .section-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+  .logo { display: flex; flex-direction: column; gap: 2px; }
+  .logo-main { font-family: var(--mono); font-size: 13px; letter-spacing: 0.12em; color: #fff; text-transform: uppercase; }
+  .logo-sub { font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; color: var(--muted); }
+
+  .live-badge { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em; color: var(--ok); background: rgba(61,220,132,0.1); border: 1px solid rgba(61,220,132,0.25); border-radius: 3px; padding: 3px 8px; }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); animation: blink 2s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  .metric-card { background: rgba(255,255,255,0.025); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; transition: border-color 0.4s; }
+  .metric-card:hover { border-color: var(--border2); }
+  .metric-label { font-family: var(--mono); font-size: 9px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 4px; }
+  .metric-value { font-family: var(--mono); font-size: 22px; line-height: 1; color: #fff; transition: color 0.5s; }
+  .metric-unit { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .status-pill { display: inline-block; font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em; padding: 2px 7px; border-radius: 2px; margin-top: 4px; text-transform: uppercase; }
+  .pill-ok     { background: rgba(61,220,132,0.15);  color: var(--ok);     border: 1px solid rgba(61,220,132,0.3); }
+  .pill-warn   { background: rgba(255,209,102,0.15); color: var(--warn);   border: 1px solid rgba(255,209,102,0.3); }
+  .pill-danger { background: rgba(239,71,111,0.15);  color: var(--danger); border: 1px solid rgba(239,71,111,0.3); }
+
+  .sat-item { display: flex; align-items: flex-start; gap: 9px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+  .sat-item:last-child { border-bottom: none; }
+  .sat-color-dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+  .sat-name { font-size: 12px; font-weight: 500; color: #e8eeff; line-height: 1.2; }
+  .sat-detail { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 1px; }
+  .impact-box { background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 11px; line-height: 1.6; color: var(--text); transition: all 0.5s; }
+  .divider { height: 1px; background: var(--border); }
+  #timestamp { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .legend-line { width: 24px; height: 2px; border-radius: 1px; flex-shrink: 0; }
+
+  .chart-card {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 12px;
+    transition: border-color 0.3s;
+  }
+  .chart-card:hover { border-color: var(--border2); }
+
+  .chart-header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 8px;
+  }
+  .chart-label {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.13em;
+    color: var(--muted); text-transform: uppercase;
+  }
+  .chart-current {
+    font-family: var(--mono); font-size: 13px; color: #fff;
+  }
+  .chart-current span {
+    font-size: 9px; color: var(--muted);
+  }
+  .chart-wrap {
+    height: 60px;
+    position: relative;
+  }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ SOL PANEL ══ -->
+  <div id="left-panel">
+    <div class="logo">
+      <div class="logo-main">HELIOS</div>
+      <div class="logo-sub">GÜNEŞ RÜZGARI İZLEME</div>
+    </div>
+
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      CANLI
+    </div>
+
+    <div id="timestamp" style="margin-top:-4px;">—</div>
+
+    <div class="divider"></div>
+    <div class="section-title">Uydular</div>
+
+    <div id="sat-list">
+      <div class="sat-item">
+        <div class="sat-color-dot" style="background:#4a9eff;"></div>
+        <div>
+          <div class="sat-name">ISS</div>
+          <div class="sat-detail">408 km · 51.6°</div>
+        </div>
+      </div>
+      <div class="sat-item">
+        <div class="sat-color-dot" style="background:#ffd166;"></div>
+        <div>
+          <div class="sat-name">DSCOVR</div>
+          <div class="sat-detail">L1 · 1.5M km</div>
+        </div>
+      </div>
+      <div class="sat-item">
+        <div class="sat-color-dot" style="background:#9f7aea;"></div>
+        <div>
+          <div class="sat-name">GPS Takımyıldızı</div>
+          <div class="sat-detail">20,200 km · 55°</div>
+        </div>
+      </div>
+      <div class="sat-item">
+        <div class="sat-color-dot" style="background:#48cfad;"></div>
+        <div>
+          <div class="sat-name">Hubble</div>
+          <div class="sat-detail">540 km · 28.5°</div>
+        </div>
+      </div>
+      <div class="sat-item">
+        <div class="sat-color-dot" style="background:#ff6b6b;"></div>
+        <div>
+          <div class="sat-name">ACE</div>
+          <div class="sat-detail">L1 · Yedek sensör</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-title">Gösterim</div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div class="legend-item"><div class="legend-line" style="background:#4a9eff;"></div>Alçak yörünge</div>
+      <div class="legend-item"><div class="legend-line" style="background:#9f7aea;"></div>Orta yörünge</div>
+      <div class="legend-item"><div class="legend-line" style="background:rgba(100,160,255,0.5);"></div>Manyetik alan</div>
+      <div class="legend-item"><div class="legend-line" style="background:linear-gradient(90deg,#ff8c42,transparent);"></div>Güneş rüzgarı</div>
+    </div>
+
+    <div style="margin-top:auto;">
+      <div style="font-family:var(--mono); font-size:9px; color:var(--muted); line-height:1.7;">
+        Kaynak: NOAA SWPC<br>
+        DSCOVR · ACE<br>
+        Güncelleme: 60s
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ ORTA CANVAS ALANI ══ -->
+  <div id="canvas-wrap">
+    <canvas id="space-canvas"></canvas>
+
+    <div id="top-bar">
+      <div class="tb-item"><div class="tb-dot" style="background:#4a9eff;"></div>ISS</div>
+      <div class="tb-item"><div class="tb-dot" style="background:#ffd166;"></div>DSCOVR</div>
+      <div class="tb-item"><div class="tb-dot" style="background:#9f7aea;"></div>GPS</div>
+      <div class="tb-item"><div class="tb-dot" style="background:#48cfad;"></div>HUBBLE</div>
+      <div class="tb-item"><div class="tb-dot" style="background:#ff6b6b;"></div>ACE</div>
+    </div>
+
+    <div id="alarm-banner"></div>
+
+    <div id="arrival-bar" style="
+      position: absolute; top: 88px; left: 50%; transform: translateX(-50%);
+      font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em;
+      color: var(--accent); background: rgba(4,4,15,0.85);
+      border: 1px solid rgba(74,158,255,0.25); border-radius: 3px;
+      padding: 5px 16px; display: none; z-index: 20;
+      backdrop-filter: blur(8px); white-space: nowrap;
+    ">⏱ L1 → DÜNYA: <span id="arrival-time">—</span></div>
+
+    <div id="bottom-bar">
+      <span>DÜNYA MERKEZLİ · J2000 ÇERÇEVE</span>
+      <span id="sim-time">—</span>
+      <span>GÜNEŞ → SOL ÜSTTEN</span>
+    </div>
+
+    <div id="satellite-labels"></div>
+  </div>
+
+  <!-- ══ SAĞ PANEL ══ -->
+  <div id="right-panel">
+    <div class="section-title">Anlık Değerler</div>
+
+    <div class="metric-card">
+      <div class="metric-label">Hız</div>
+      <div class="metric-value" id="m-speed">—</div>
+      <div class="metric-unit">km/s</div>
+      <div id="b-speed" class="status-pill pill-ok">—</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Proton Yoğunluğu</div>
+      <div class="metric-value" id="m-density">—</div>
+      <div class="metric-unit">p/cm³</div>
+      <div id="b-density" class="status-pill pill-ok">—</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Bz Manyetik Alan</div>
+      <div class="metric-value" id="m-bz">—</div>
+      <div class="metric-unit">nanoTesla</div>
+      <div id="b-bz" class="status-pill pill-ok">—</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Sıcaklık</div>
+      <div class="metric-value" id="m-temp">—</div>
+      <div class="metric-unit">×10³ Kelvin</div>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="section-title">Son 24 Saat</div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-label">Hız Trendi</div>
+        <div class="chart-current" id="gc-speed">—<span> km/s</span></div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-speed"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-label">Bz Trendi</div>
+        <div class="chart-current" id="gc-bz">—<span> nT</span></div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-bz"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <div class="chart-header">
+        <div class="chart-label">Yoğunluk Trendi</div>
+        <div class="chart-current" id="gc-density">—<span> p/cm³</span></div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-density"></canvas>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="section-title">Etki Durumu</div>
+    <div class="impact-box" id="impact-box">Veri bekleniyor...</div>
+
+    <div class="divider"></div>
+    <div class="section-title">Risk Seviyeleri</div>
+
+    <div style="display:flex; flex-direction:column; gap:6px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+        <span style="color:var(--muted)">GPS/Navigasyon</span>
+        <span class="status-pill pill-ok" id="risk-gps">—</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+        <span style="color:var(--muted)">Elektrik şebekesi</span>
+        <span class="status-pill pill-ok" id="risk-power">—</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+        <span style="color:var(--muted)">Radyo iletişim</span>
+        <span class="status-pill pill-ok" id="risk-radio">—</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px;">
+        <span style="color:var(--muted)">Aurora görünürlüğü</span>
+        <span class="status-pill pill-ok" id="risk-aurora">—</span>
+      </div>
+    </div>
+
+    <div style="margin-top:auto; padding-top:8px;">
+      <div style="font-family:var(--mono); font-size:9px; color:var(--muted); line-height:1.7;">
+        services.swpc.noaa.gov<br>
+        Plasma 7-Day · Mag 7-Day
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════
+// THREE.JS - 3B SAHNE KURULUMU
+// ════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('space-canvas');
+const wrap   = document.getElementById('canvas-wrap');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x04040f, 1);
+
+const scene  = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 1000);
+camera.position.set(0, 2.5, 6);
+camera.lookAt(0, 0, 0);
+
+function resize() {
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── YILDIZLAR ──
+const starGeo = new THREE.BufferGeometry();
+const starPos = [];
+
+for (let i = 0; i < 3000; i++) {
+  const r     = 150 + Math.random() * 250;
+  const theta = Math.random() * Math.PI * 2;
+  const phi   = Math.acos(2 * Math.random() - 1);
+  starPos.push(
+    r * Math.sin(phi) * Math.cos(theta),
+    r * Math.sin(phi) * Math.sin(theta),
+    r * Math.cos(phi)
+  );
+}
+starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starPos, 3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({ color: 0xffffff, size: 0.35, sizeAttenuation: true })));
+
+// ── IŞIKLANDIRMA ──
+const sunLight = new THREE.DirectionalLight(0xfff5e0, 2.2);
+sunLight.position.set(15, 3, -2);
+scene.add(sunLight);
+
+const ambLight = new THREE.AmbientLight(0x111133, 0.5);
+scene.add(ambLight);
+
+// ── DÜNYA DOKUSU ──
+const texLoader = new THREE.TextureLoader();
+texLoader.crossOrigin = 'anonymous';
+
+const earthTex    = texLoader.load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+const earthNight  = texLoader.load('https://threejs.org/examples/textures/planets/earth_lights_2048.png');
+const earthSpec   = texLoader.load('https://threejs.org/examples/textures/planets/earth_specular_2048.jpg');
+const cloudTex    = texLoader.load('https://threejs.org/examples/textures/planets/earth_clouds_1024.png');
+
+const earthMat = new THREE.MeshPhongMaterial({
+  map: earthTex,
+  specularMap: earthSpec,
+  specular: new THREE.Color(0x226688),
+  shininess: 20,
+  emissiveMap: earthNight,
+  emissive: new THREE.Color(0xff9944),
+  emissiveIntensity: 0.7,
+});
+const earth = new THREE.Mesh(new THREE.SphereGeometry(1, 64, 64), earthMat);
+scene.add(earth);
+
+// ── BULUT KATMANI ──
+const clouds = new THREE.Mesh(
+  new THREE.SphereGeometry(1.008, 48, 48),
+  new THREE.MeshPhongMaterial({ map: cloudTex, transparent: true, opacity: 0.3, depthWrite: false })
+);
+scene.add(clouds);
+
+// ── ATMOSFERİK KATMANLAR ──
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(1.06, 48, 48),
+  new THREE.MeshPhongMaterial({ color: 0x3388ff, transparent: true, opacity: 0.10, side: THREE.FrontSide, depthWrite: false })
+));
+scene.add(new THREE.Mesh(
+  new THREE.SphereGeometry(1.18, 48, 48),
+  new THREE.MeshBasicMaterial({ color: 0x1155dd, transparent: true, opacity: 0.055, side: THREE.BackSide })
+));
+
+// ── YÖRÜNGE ÇİZGİSİ YARDIMCISI ──
+function makeOrbit(radius, inclDeg, color, opacity = 0.5) {
+  const pts = [];
+  for (let i = 0; i <= 256; i++) {
+    const a = (i / 256) * Math.PI * 2;
+    pts.push(new THREE.Vector3(Math.cos(a) * radius, 0, Math.sin(a) * radius));
+  }
+  const line = new THREE.LineLoop(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity })
+  );
+  line.rotation.x = inclDeg * Math.PI / 180;
+  scene.add(line);
+  return line;
+}
+
+makeOrbit(4.2, 55,  0x9f7aea, 0.25);
+makeOrbit(4.2, -55, 0x9f7aea, 0.25);
+makeOrbit(4.2, 0,   0x9f7aea, 0.18);
+
+// ── UYDU YARDIMCISI ──
+function makeSat(radius, inclDeg, color, speed) {
+  const sat = new THREE.Mesh(
+    new THREE.SphereGeometry(0.025, 8, 8),
+    new THREE.MeshBasicMaterial({ color })
+  );
+  sat.add(new THREE.Mesh(
+    new THREE.SphereGeometry(0.055, 8, 8),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.25 })
+  ));
+  scene.add(sat);
+  return { mesh: sat, radius, inc: inclDeg * Math.PI / 180, speed, angle: Math.random() * Math.PI * 2, color, name: '' };
+}
+
+const sats = [
+  Object.assign(makeSat(1.064, 51.6,  0x4a9eff, 0.9),  { name: 'ISS' }),
+  Object.assign(makeSat(1.085, 28.5,  0x48cfad, 0.65), { name: 'HST' }),
+  Object.assign(makeSat(4.2,   55,    0x9f7aea, 0.28), { name: 'GPS' }),
+  Object.assign(makeSat(4.2,  -55,    0x9f7aea, 0.25), { name: 'GPS' }),
+  Object.assign(makeSat(4.2,   0,     0x9f7aea, 0.3),  { name: 'GPS' }),
+  Object.assign(makeSat(1.064, 51.6,  0xff6b6b, 0.72), { name: 'ACE*' }),
+];
+
+// ── MANYETİK ALAN ÇİZGİLERİ ──
+for (let plane = 0; plane < 3; plane++) {
+  const pts = [];
+  for (let i = 0; i <= 60; i++) {
+    const t = (i / 60) * Math.PI;
+    const r = 1.6 * Math.pow(Math.sin(t), 2) + 0.65;
+    pts.push(new THREE.Vector3(r * Math.cos(t - Math.PI/2), r * Math.sin(t - Math.PI/2), 0));
+  }
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0x3377cc, transparent: true, opacity: 0.09 })
+  );
+  line.rotation.y = (plane / 3) * Math.PI * 2;
+  scene.add(line);
+}
+
+// ── GÜNEŞ RÜZGARI PARÇACIKLARI ──
+const SW_COUNT = 500;
+const swGeo = new THREE.BufferGeometry();
+const swPos = new Float32Array(SW_COUNT * 3);
+const swVel = new Float32Array(SW_COUNT);
+const swOffset = new Float32Array(SW_COUNT);
+
+function initParticle(i, randomX = false) {
+  swPos[i*3]   = randomX ? (Math.random() * 22 + 6) : (18 + Math.random() * 4);
+  swPos[i*3+1] = (Math.random() - 0.5) * 14;
+  swPos[i*3+2] = (Math.random() - 0.5) * 14;
+  swVel[i]     = 0.05 + Math.random() * 0.04;
+  swOffset[i]  = Math.random() * Math.PI * 2;
+}
+
+for (let i = 0; i < SW_COUNT; i++) initParticle(i, true);
+swGeo.setAttribute('position', new THREE.BufferAttribute(swPos, 3));
+
+const swMat = new THREE.PointsMaterial({ color: 0xff8c42, size: 0.07, sizeAttenuation: true, transparent: true, opacity: 0.6 });
+const swPoints = new THREE.Points(swGeo, swMat);
+scene.add(swPoints);
+
+// ── GÜNEŞ GÖRSELİ ──
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(1.2, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xffcc33, transparent: true, opacity: 0.22 })
+);
+sunMesh.position.set(22, 2, -3);
+scene.add(sunMesh);
+
+const sunGlow = new THREE.Mesh(
+  new THREE.SphereGeometry(1.8, 24, 24),
+  new THREE.MeshBasicMaterial({ color: 0xff8822, transparent: true, opacity: 0.08, side: THREE.BackSide })
+);
+sunGlow.position.copy(sunMesh.position);
+scene.add(sunGlow);
+
+// ── FARE İLE KAMERA KONTROLÜ ──
+let isDragging = false, prevX = 0, prevY = 0;
+let camTheta = Math.atan2(camera.position.x, camera.position.z);
+let camPhi   = Math.atan2(camera.position.y, Math.sqrt(camera.position.x**2 + camera.position.z**2));
+let camR     = camera.position.length();
+
+canvas.addEventListener('mousedown', e => { isDragging = true; prevX = e.clientX; prevY = e.clientY; });
+window.addEventListener('mouseup',   () => isDragging = false);
+
+window.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  camTheta -= (e.clientX - prevX) * 0.006;
+  camPhi   += (e.clientY - prevY) * 0.004;
+  camPhi = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, camPhi));
+  camera.position.x = camR * Math.cos(camPhi) * Math.sin(camTheta);
+  camera.position.y = camR * Math.sin(camPhi);
+  camera.position.z = camR * Math.cos(camPhi) * Math.cos(camTheta);
+  camera.lookAt(0, 0, 0);
+  prevX = e.clientX; prevY = e.clientY;
+});
+
+canvas.addEventListener('wheel', e => {
+  camR = Math.max(2.5, Math.min(14, camR + e.deltaY * 0.008));
+  camera.position.x = camR * Math.cos(camPhi) * Math.sin(camTheta);
+  camera.position.y = camR * Math.sin(camPhi);
+  camera.position.z = camR * Math.cos(camPhi) * Math.cos(camTheta);
+  camera.lookAt(0, 0, 0);
+});
+
+// ── UYDU ETİKETLERİ ──
+const labelDiv = document.getElementById('satellite-labels');
+const labelEls = sats.slice(0, 2).map(s => {
+  const el = document.createElement('div');
+  el.className = 'sat-label';
+  el.textContent = s.name;
+  el.style.color = '#' + new THREE.Color(s.color).getHexString();
+  labelDiv.appendChild(el);
+  return { el, sat: s };
+});
+
+function projectToScreen(pos3d) {
+  const v  = pos3d.clone().project(camera);
+  const ww = wrap.clientWidth, wh = wrap.clientHeight;
+  return { x: (v.x * 0.5 + 0.5) * ww, y: (-v.y * 0.5 + 0.5) * wh };
+}
+
+// ── ANİMASYON DÖNGÜSÜ ──
+let tick = 0;
+const simTimeEl = document.getElementById('sim-time');
+
+function animate() {
+  requestAnimationFrame(animate);
+  tick += 0.01;
+
+  earth.rotation.y  = tick * 0.15;
+  clouds.rotation.y = tick * 0.18;
+
+  sats.forEach(s => {
+    s.angle += s.speed * 0.008;
+    s.mesh.position.set(
+      Math.cos(s.angle) * s.radius,
+      Math.sin(s.angle) * s.radius * Math.sin(s.inc),
+      Math.sin(s.angle) * s.radius * Math.cos(s.inc)
+    );
+  });
+
+  labelEls.forEach(({ el, sat }) => {
+    const sc = projectToScreen(sat.mesh.position);
+    el.style.left = sc.x + 'px';
+    el.style.top  = (sc.y - 14) + 'px';
+  });
+
+  const pos = swGeo.attributes.position.array;
+  for (let i = 0; i < SW_COUNT; i++) {
+    pos[i*3] -= swVel[i];
+
+    const dx = pos[i*3], dy = pos[i*3+1], dz = pos[i*3+2];
+    const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+    if (dist < 1.8 && dist > 0.1) {
+      const f = (1.8 - dist) / 1.8 * 0.08;
+      pos[i*3]   += (dx/dist) * f;
+      pos[i*3+1] += (dy/dist) * f * 0.5;
+      pos[i*3+2] += (dz/dist) * f * 0.5;
+    }
+
+    if (pos[i*3] < -16) initParticle(i, false);
+  }
+  swGeo.attributes.position.needsUpdate = true;
+
+  const p = 0.5 + 0.1 * Math.sin(tick * 0.5);
+  sunMesh.material.opacity = p * 0.22;
+  sunGlow.material.opacity = p * 0.08;
+
+  simTimeEl.textContent = new Date().toUTCString().replace(' GMT','') + ' UTC';
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// ════════════════════════════════════════════════════════
+// CHART.JS - 24 SAATLİK GRAFİKLER
+// ════════════════════════════════════════════════════════
+
+function makeChart(canvasId, color, label) {
+  return new Chart(document.getElementById(canvasId), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label,
+        data: [],
+        borderColor: color,
+        borderWidth: 1.5,
+        pointRadius: 0,
+        fill: true,
+        backgroundColor: color.replace(')', ',0.08)').replace('rgb', 'rgba'),
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          display: false,
+          grid: { display: false }
+        },
+        y: {
+          display: true,
+          grid: { color: 'rgba(100,140,255,0.06)', drawBorder: false },
+          ticks: {
+            color: 'rgba(180,200,255,0.35)',
+            font: { family: 'Share Tech Mono', size: 8 },
+            maxTicksLimit: 3,
+            padding: 4
+          }
+        }
+      }
+    }
+  });
+}
+
+const chartSpeed   = makeChart('chart-speed',   'rgb(74,158,255)',  'Hız');
+const chartBz      = makeChart('chart-bz',      'rgb(159,122,234)', 'Bz');
+const chartDensity = makeChart('chart-density', 'rgb(255,140,66)',  'Yoğunluk');
+
+async function fetchHistory() {
+  try {
+    const [pRes, mRes] = await Promise.all([
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json'),
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json')
+    ]);
+    const plasma = await pRes.json();
+    const mag    = await mRes.json();
+
+    const now   = Date.now();
+    const h24   = 24 * 60 * 60 * 1000;
+
+    const recentPlasma = plasma.slice(1).filter(row => {
+      return (now - new Date(row[0]).getTime()) < h24;
+    });
+
+    const recentMag = mag.slice(1).filter(row => {
+      return (now - new Date(row[0]).getTime()) < h24;
+    });
+
+    const labelsP = recentPlasma.map(row => {
+      const d = new Date(row[0]);
+      return d.getUTCHours().toString().padStart(2,'0') + ':' + d.getUTCMinutes().toString().padStart(2,'0');
+    });
+
+    const labelsM = recentMag.map(row => {
+      const d = new Date(row[0]);
+      return d.getUTCHours().toString().padStart(2,'0') + ':' + d.getUTCMinutes().toString().padStart(2,'0');
+    });
+
+    chartSpeed.data.labels         = labelsP;
+    chartSpeed.data.datasets[0].data = recentPlasma.map(r => parseFloat(r[2]));
+    chartSpeed.update();
+
+    chartDensity.data.labels           = labelsP;
+    chartDensity.data.datasets[0].data = recentPlasma.map(r => parseFloat(r[1]));
+    chartDensity.update();
+
+    chartBz.data.labels         = labelsM;
+    chartBz.data.datasets[0].data = recentMag.map(r => parseFloat(r[3]));
+    chartBz.update();
+
+    if (recentPlasma.length > 0) {
+      const last = recentPlasma[recentPlasma.length - 1];
+      document.getElementById('gc-speed').innerHTML   = Math.round(parseFloat(last[2])) + '<span> km/s</span>';
+      document.getElementById('gc-density').innerHTML = parseFloat(last[1]).toFixed(1)  + '<span> p/cm³</span>';
+    }
+    if (recentMag.length > 0) {
+      const lastM = recentMag[recentMag.length - 1];
+      document.getElementById('gc-bz').innerHTML = parseFloat(lastM[3]).toFixed(1) + '<span> nT</span>';
+    }
+
+  } catch(e) {
+    console.warn('Grafik verisi alınamadı:', e);
+  }
+}
+
+fetchHistory();
+setInterval(fetchHistory, 300000);
+
+// ════════════════════════════════════════════════════════
+// NOAA - ANLIK VERİ VE ALARM BANNER
+// ════════════════════════════════════════════════════════
+
+function setVal(id, val, decimals = 0) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = isNaN(val) ? '—' : val.toFixed(decimals);
+}
+
+function setBadge(id, cls, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'status-pill ' + cls;
+  el.textContent = text;
+}
+
+function setRisk(id, level) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if      (level === 0) { el.className = 'status-pill pill-ok';     el.textContent = 'Normal'; }
+  else if (level === 1) { el.className = 'status-pill pill-warn';   el.textContent = 'Yüksek'; }
+  else                  { el.className = 'status-pill pill-danger'; el.textContent = 'Kritik'; }
+}
+
+const alarmBanner = document.getElementById('alarm-banner');
+
+async function fetchNoaa() {
+  try {
+    const [pRes, mRes] = await Promise.all([
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json'),
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json')
+    ]);
+    const plasma = await pRes.json();
+    const mag    = await mRes.json();
+
+    const lp = plasma[plasma.length - 1];
+    const lm = mag[mag.length - 1];
+
+    const speed   = parseFloat(lp[2]);
+    const density = parseFloat(lp[1]);
+    const temp    = parseFloat(lp[3]);
+    const bz      = parseFloat(lm[3]);
+
+    setVal('m-speed',   speed,   0);
+    setVal('m-density', density, 1);
+    setVal('m-bz',      bz,      1);
+    setVal('m-temp',    temp / 1000, 0);
+
+    document.getElementById('timestamp').textContent = new Date(lp[0]).toLocaleString('tr-TR');
+
+    if      (speed < 400) setBadge('b-speed', 'pill-ok',     'Normal');
+    else if (speed < 600) setBadge('b-speed', 'pill-warn',   'Yüksek');
+    else                  setBadge('b-speed', 'pill-danger', 'Kritik');
+
+    if      (density < 10) setBadge('b-density', 'pill-ok',     'Normal');
+    else if (density < 20) setBadge('b-density', 'pill-warn',   'Yoğun');
+    else                   setBadge('b-density', 'pill-danger', 'Kritik');
+
+    if      (bz > -5)  setBadge('b-bz', 'pill-ok',     'Kuzeye');
+    else if (bz > -15) setBadge('b-bz', 'pill-warn',   'Güneye');
+    else               setBadge('b-bz', 'pill-danger', 'Tehlikeli');
+
+    const swIdx  = speed   > 600 ? 2 : speed   > 500 ? 1 : 0;
+    const bzIdx  = bz      < -15 ? 2 : bz      < -10 ? 1 : 0;
+    const denIdx = density > 20  ? 2 : density > 15  ? 1 : 0;
+    const combined = Math.max(swIdx, bzIdx);
+
+    setRisk('risk-gps',   Math.max(bzIdx, denIdx));
+    setRisk('risk-power', combined);
+    setRisk('risk-radio', Math.max(swIdx, denIdx));
+    setRisk('risk-aurora', (bzIdx > 0 || swIdx > 0) ? 1 : 0);
+
+    const L1_DISTANCE_KM = 1500000;
+    const arrivalSecs    = Math.round(L1_DISTANCE_KM / speed);
+    const arrivalMins    = Math.round(arrivalSecs / 60);
+    const arrivalDate    = new Date(Date.now() + arrivalSecs * 1000);
+    const arrivalStr     = arrivalDate.toUTCString().slice(17, 22) + ' UTC';
+    document.getElementById('arrival-time').textContent = `~${arrivalMins} DAKİKA · ${arrivalStr}`;
+    document.getElementById('arrival-bar').style.display = 'block';
+    if      (speed > 600) document.getElementById('arrival-bar').style.borderColor = 'rgba(239,71,111,0.5)';
+    else if (speed > 500) document.getElementById('arrival-bar').style.borderColor = 'rgba(255,209,102,0.4)';
+    else                  document.getElementById('arrival-bar').style.borderColor = 'rgba(74,158,255,0.25)';
+
+    if (combined === 2) {
+      document.getElementById('impact-box').textContent =
+        'Jeomanyetik fırtına aktif. GPS sinyalleri bozulabilir, elektrik şebekeleri etkilenebilir. Kutuplarda güçlü aurora görülebilir.';
+      swMat.color.setHex(0xff3333);
+      alarmBanner.style.display = 'block';
+      alarmBanner.className = 'alarm-danger';
+      alarmBanner.innerHTML = `⚠ KRİTİK — Jeomanyetik fırtına aktif &nbsp;|&nbsp; ⏱ Dünya'ya ~${arrivalMins} dakika sonra çarpacak`;
+
+    } else if (combined === 1) {
+      document.getElementById('impact-box').textContent =
+        'Hafif jeomanyetik aktivite. Yüksek enlemlerde aurora görülebilir. GPS\'de küçük sapmalar mümkün.';
+      swMat.color.setHex(0xff8c42);
+      alarmBanner.style.display = 'block';
+      alarmBanner.className = 'alarm-warn';
+      alarmBanner.innerHTML = `⚡ DİKKAT — Artmış güneş aktivitesi &nbsp;|&nbsp; ⏱ Dünya'ya ~${arrivalMins} dakika sonra ulaşacak`;
+
+    } else {
+      document.getElementById('impact-box').textContent =
+        'Koşullar normal. Tüm uydular ve altyapı güvende. Güneş rüzgarı sakin seyrediyor.';
+      swMat.color.setHex(0x44dd88);
+      alarmBanner.style.display = 'none';
+    }
+
+    const factor = Math.min(speed / 380, 2.8);
+    for (let i = 0; i < SW_COUNT; i++) swVel[i] = (0.04 + Math.random() * 0.04) * factor;
+
+    checkAndSendAlarm(speed, bz, density, combined);
+    saveToSupabase(speed, bz, density, temp / 1000);
+
+  } catch(e) {
+    document.getElementById('timestamp').textContent    = 'Bağlantı hatası';
+    document.getElementById('impact-box').textContent   = 'NOAA sunucusuna bağlanılamadı. İnternet bağlantınızı kontrol edin.';
+    alarmBanner.style.display = 'none';
+  }
+}
+
+fetchNoaa();
+setInterval(fetchNoaa, 60000);
+
+// EMAILJS - ERKEN UYARI SİSTEMİ
+
+// EmailJS statik olarak <head>'de yüklendi - init burada çalışır
+emailjs.init({ publicKey: 'Bvsry61L9umVTmfv1' });
+console.log('EmailJS hazır ✅');
+
+const EJS_SERVICE_ID  = 'service_h8kcbch';
+const EJS_TEMPLATE_ID = 'template_qd5ya0u';
+
+let lastAlarmLevel = 0;
+let lastAlarmTime  = 0;
+const ALARM_COOLDOWN = 60000;
+
+const ALERT_RECIPIENTS = [
+  { name: 'Yahya Sönmez - HELIOS',         email: 'sonmezyahya87@gmail.com' },
+  { name: 'Havva İrem Akın  - HELIOS',      email: 'havvairemakin@gmail.com' },
+  { name: 'Kübra Öz - HELIOS',              email: 'kbrzzz76@gmail.com' },
+  { name: 'Ali İmran Tüzü - HELIOS',        email: 'imranalitzn@gmail.com' },
+  { name: 'Hamiyet Rükiye Şimşek  - HELIOS', email: 'hamiyetsimsek0638@gmail.com' },
+];
+
+function estimateKpForAlert(speed, bz, density) {
+  const pressure = 1.67e-6 * density * speed * speed;
+  const bzNeg    = bz < 0 ? Math.abs(bz) : 0;
+  const epsilon  = Math.pow(speed, 1.33) * Math.pow(bzNeg + 0.1, 0.67) * Math.pow(pressure + 0.1, 0.2);
+  let kp = Math.log10(epsilon + 1) * 1.8 - 0.5;
+  if (speed > 600)  kp += (speed - 600) / 300;
+  if (density > 15) kp += (density - 15) / 30;
+  return Math.max(0, Math.min(9, kp));
+}
+
+async function sendAlertEmails(speed, bz, density, alarmLevel) {
+  const now = Date.now();
+  if (alarmLevel <= lastAlarmLevel && (now - lastAlarmTime) < ALARM_COOLDOWN) {
+    console.log('Alarm cooldown aktif - gönderilmedi');
+    return;
+  }
+
+  const kp           = estimateKpForAlert(speed, bz, density);
+  const alarmSeviyesi = alarmLevel === 2 ? '🔴 KRİTİK' : '🟡 DİKKAT';
+
+  const arrivalMins = Math.round(1500000 / speed / 60);
+  const arrivalDate = new Date(Date.now() + arrivalMins * 60000);
+
+  const trOptions = { timeZone: 'Europe/Istanbul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false };
+  const varjsZamaniTR = arrivalDate.toLocaleString('tr-TR', trOptions);
+  const simdikiZamanTR = new Date().toLocaleString('tr-TR', trOptions);
+
+  const alarmMesaji = alarmLevel === 2
+    ? `⚠ KRİTİK güneş rüzgarı fırtınası! Dünya'ya yaklaşık ${arrivalMins} dakika içinde çarpacak. GPS, elektrik şebekeleri ve radyo iletişimi ciddi şekilde etkilenebilir.`
+    : `Artmış güneş aktivitesi tespit edildi. Güneş rüzgarı Dünya'ya yaklaşık ${arrivalMins} dakika içinde ulaşacak. Yüksek enlemlerde aurora görülebilir.`;
+
+  console.log(`📧 ${ALERT_RECIPIENTS.length} kişiye uyarı gönderiliyor...`);
+
+  let basarili = 0;
+  for (const recipient of ALERT_RECIPIENTS) {
+    try {
+      await emailjs.send(EJS_SERVICE_ID, EJS_TEMPLATE_ID, {
+        gozlemevi_adi:   recipient.name,
+        alarm_seviyesi:  alarmSeviyesi,
+        hiz:             Math.round(speed),
+        bz:              bz.toFixed(1),
+        yogunluk:        density.toFixed(1),
+        kp_indeksi:      kp.toFixed(1),
+        zaman:           simdikiZamanTR + ' (TR)',
+        alarm_mesaji:    alarmMesaji,
+        varjs_zamani_tr: varjsZamaniTR,
+        varjs_dakika:    arrivalMins,
+        to_email:        recipient.email,
+        name:            'HELIOS Sistemi',
+        email:           'helios@sistem.com',
+      });
+      basarili++;
+      console.log(`✅ Gönderildi: ${recipient.name}`);
+    } catch(err) {
+      console.error(`❌ Hata (${recipient.name}):`, err);
+    }
+  }
+
+  lastAlarmLevel = alarmLevel;
+  lastAlarmTime  = now;
+
+  showNotification(`📧 ${basarili}/${ALERT_RECIPIENTS.length} kişiye uyarı gönderildi!`, alarmLevel);
+  console.log(`✅ Toplam ${basarili} mail gönderildi`);
+}
+
+function showNotification(msg, level) {
+  const old = document.getElementById('alert-notification');
+  if (old) old.remove();
+
+  const el = document.createElement('div');
+  el.id = 'alert-notification';
+  el.style.cssText = `
+    position: absolute;
+    bottom: 44px; left: 50%; transform: translateX(-50%);
+    z-index: 30; cursor: pointer;
+    font-family: 'Share Tech Mono', monospace; font-size: 11px;
+    letter-spacing: 0.1em; padding: 10px 20px; border-radius: 4px;
+    display: flex; align-items: center; gap: 10px;
+    animation: slideUp 0.4s ease;
+    white-space: nowrap;
+    ${level === 2
+      ? 'background:rgba(239,71,111,0.2);color:#ef476f;border:1px solid rgba(239,71,111,0.45);box-shadow:0 0 20px rgba(239,71,111,0.15);'
+      : 'background:rgba(255,209,102,0.2);color:#ffd166;border:1px solid rgba(255,209,102,0.45);box-shadow:0 0 20px rgba(255,209,102,0.15);'
+    }
+  `;
+
+  const icon  = level === 2 ? '⚠' : '⚡';
+  const title = level === 2 ? 'KRİTİK SEVİYE' : 'DİKKAT SEVİYESİ';
+
+  el.innerHTML = `
+    <span style="font-size:14px;">${icon}</span>
+    <span><strong>${title}</strong> — Uyarı gönderildi</span>
+    <span style="opacity:0.5;font-size:9px;margin-left:4px;">${msg}</span>
+    <span style="opacity:0.4;font-size:11px;margin-left:8px;cursor:pointer;" onclick="this.parentElement.remove()">✕</span>
+  `;
+
+  document.getElementById('canvas-wrap').appendChild(el);
+  setTimeout(() => { if (el.parentElement) el.remove(); }, 10000);
+}
+
+function checkAndSendAlarm(speed, bz, density, combined) {
+  if (combined >= 1) {
+    sendAlertEmails(speed, bz, density, combined);
+  } else {
+    lastAlarmLevel = 0;
+  }
+}
+
+// SUPABASE - VERİTABANI
+
+const SUPABASE_URL = 'https://tnhufulrdbfjghdghtlm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuaHVmdWxyZGJmamdoZGdodGxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTM0MDcsImV4cCI6MjA5MDI2OTQwN30.YsKCIf-ZQFSgpUwSGxSrTo-EcfbRtVrsW-H_0lmDgxA';
+
+function calcKp(speed, bz, density) {
+  const pressure = 1.67e-6 * density * speed * speed;
+  const bzNeg    = bz < 0 ? Math.abs(bz) : 0;
+  const epsilon  = Math.pow(speed, 1.33) * Math.pow(bzNeg + 0.1, 0.67) * Math.pow(pressure + 0.1, 0.2);
+  let kp = Math.log10(epsilon + 1) * 1.8 - 0.5;
+  if (speed > 600)  kp += (speed - 600) / 300;
+  if (density > 15) kp += (density - 15) / 30;
+  return Math.max(0, Math.min(9, kp));
+}
+
+async function saveToSupabase(speed, bz, density, temperature) {
+  try {
+    const kp = calcKp(speed, bz, density);
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/solar_wind_data`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+        'Prefer': 'return=minimal'
+      },
+      body: JSON.stringify({ speed, bz, density, temperature, kp_index: parseFloat(kp.toFixed(2)) })
+    });
+    if (res.ok) console.log('✅ Supabase: veri kaydedildi');
+    else console.warn('⚠ Supabase hata:', res.status);
+  } catch(e) {
+    console.warn('Supabase bağlantı hatası:', e.message);
+  }
+}
+</script>
+
+<style>
+@keyframes fadeInUp {
+  from { opacity:0; transform:translateY(10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+@keyframes slideUp {
+  from { opacity:0; transform:translateX(-50%) translateY(16px); }
+  to   { opacity:1; transform:translateX(-50%) translateY(0); }
+}
+</style>
+</body>
+</html>
