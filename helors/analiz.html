@@ -259,9 +259,7 @@
 </div>
 
 <script>
-// ════════════════════════════════════════════════════════
 // GÖZEM EVLERİ
-// ════════════════════════════════════════════════════════
 const OBSERVATORIES = [
   // ── TÜRKİYE ──
   { id:'tug',      name:'TUG',        fullName:'Türkiye Ulusal Gözlemevi',          country:'Türkiye',      city:'Antalya',           lat:36.82, lon:30.33,   color:'#ffd166' },
@@ -414,14 +412,13 @@ const OBSERVATORIES = [
   { id:'huairou',  name:'Huairou',    fullName:'Huairou Güneş Gözleme İst.',         country:'Çin',          city:'Pekin',             lat:40.39, lon:116.62,  color:'#ff8c42' },
 ];
 
-// ════════════════════════════════════════════════════════
 // BİLİMSEL BÖLGESEL ETKİ HESAPLAMA MODELİ
 //
 // Kaynak: NOAA Space Weather Scales + Newell et al. 2008
 // Jeomanyetik enlem tablosu, IRI iyonosfer modeli,
 // ve NOAA Kp tahmini formüllerine dayalıdır.
 // Doğruluk: ~%75-90 (NOAA tahmin servisiyle karşılaştırılmış)
-// ════════════════════════════════════════════════════════
+
 
 // ── ADIM 1: Kp İndeksi Tahmini ──
 // NOAA'nın kullandığı ampirik formüle yakın tahmin
@@ -570,9 +567,8 @@ function calcImpactTimeline(obs, plasmaRows, magRows) {
   return scores;
 }
 
-// ════════════════════════════════════════════════════════
 // THREE.JS
-// ════════════════════════════════════════════════════════
+
 const canvas = document.getElementById('globe-canvas');
 const wrap   = document.getElementById('globe-wrap');
 
@@ -734,10 +730,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-
-// ════════════════════════════════════════════════════════
 // NOAA VERİ CACHE - Bir kere çekilir, her tıklamada tekrar kullanılır
-// ════════════════════════════════════════════════════════
+
 let noaaCache = null; // Cache: { plasma, mag, fetchedAt }
 
 async function getNoaaData() {
@@ -756,9 +750,7 @@ async function getNoaaData() {
   return noaaCache;
 }
 
-// ════════════════════════════════════════════════════════
 // PANEL
-// ════════════════════════════════════════════════════════
 let chartRadar = null, chartImpact = null; // Grafik nesneleri
 let currentObs = null; // Şu an açık olan gözlemevi
 

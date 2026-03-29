@@ -383,9 +383,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 
 <script>
-// ════════════════════════════════════════════════════════
+
 // THREE.JS - 3B SAHNE KURULUMU
-// ════════════════════════════════════════════════════════
 
 const canvas = document.getElementById('space-canvas');
 const wrap   = document.getElementById('canvas-wrap');
@@ -667,9 +666,8 @@ function animate() {
 }
 animate();
 
-// ════════════════════════════════════════════════════════
+
 // CHART.JS - 24 SAATLİK GRAFİKLER
-// ════════════════════════════════════════════════════════
 
 function makeChart(canvasId, color, label) {
   return new Chart(document.getElementById(canvasId), {
@@ -776,9 +774,8 @@ async function fetchHistory() {
 fetchHistory();
 setInterval(fetchHistory, 300000);
 
-// ════════════════════════════════════════════════════════
+
 // NOAA - ANLIK VERİ VE ALARM BANNER
-// ════════════════════════════════════════════════════════
 
 function setVal(id, val, decimals = 0) {
   const el = document.getElementById(id);
@@ -898,6 +895,7 @@ async function fetchNoaa() {
 fetchNoaa();
 setInterval(fetchNoaa, 60000);
 
+
 // EMAILJS - ERKEN UYARI SİSTEMİ
 
 // EmailJS statik olarak <head>'de yüklendi - init burada çalışır
@@ -991,9 +989,9 @@ function showNotification(msg, level) {
   const el = document.createElement('div');
   el.id = 'alert-notification';
   el.style.cssText = `
-    position: absolute;
-    bottom: 44px; left: 50%; transform: translateX(-50%);
-    z-index: 30; cursor: pointer;
+    position: fixed;
+    bottom: 30px; left: 50%; transform: translateX(-50%);
+    z-index: 9999; cursor: pointer;
     font-family: 'Share Tech Mono', monospace; font-size: 11px;
     letter-spacing: 0.1em; padding: 10px 20px; border-radius: 4px;
     display: flex; align-items: center; gap: 10px;
@@ -1015,7 +1013,7 @@ function showNotification(msg, level) {
     <span style="opacity:0.4;font-size:11px;margin-left:8px;cursor:pointer;" onclick="this.parentElement.remove()">✕</span>
   `;
 
-  document.getElementById('canvas-wrap').appendChild(el);
+  document.body.appendChild(el);
   setTimeout(() => { if (el.parentElement) el.remove(); }, 10000);
 }
 
@@ -1027,8 +1025,8 @@ function checkAndSendAlarm(speed, bz, density, combined) {
   }
 }
 
-// SUPABASE - VERİTABANI
 
+// SUPABASE - VERİTABANI
 const SUPABASE_URL = 'https://tnhufulrdbfjghdghtlm.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuaHVmdWxyZGJmamdoZGdodGxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTM0MDcsImV4cCI6MjA5MDI2OTQwN30.YsKCIf-ZQFSgpUwSGxSrTo-EcfbRtVrsW-H_0lmDgxA';
 
