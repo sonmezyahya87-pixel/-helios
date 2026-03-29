@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HELIOS — Kütüphane</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #04040f; --bg2: #080820; --bg3: #0c0c28;
+    --border: rgba(100,140,255,0.12); --border2: rgba(100,140,255,0.28);
+    --accent: #4a9eff; --accent2: #ff8c42;
+    --text: #d0d8f0; --muted: rgba(180,200,255,0.45);
+    --ok: #3ddc84; --warn: #ffd166; --danger: #ef476f;
+    --mono: 'Share Tech Mono', monospace; --sans: 'Exo 2', sans-serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+  #app { display: flex; flex-direction: column; height: 100vh; width: 100vw; }
+
+  #top-bar {
+    height: 52px; min-height: 52px;
+    background: rgba(4,4,15,0.97);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 24px; gap: 20px; z-index: 10;
+    backdrop-filter: blur(10px);
+  }
+  .tb-title { font-family: var(--mono); font-size: 11px; letter-spacing: 0.2em; color: #fff; text-transform: uppercase; }
+  .tb-sep { width: 1px; height: 20px; background: var(--border); }
+  .tb-info { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; }
+  .tb-info span { color: var(--accent); }
+
+  .filter-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+  .filter-btn {
+    font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
+    color: var(--muted); border: 1px solid var(--border); background: transparent;
+    padding: 5px 12px; border-radius: 3px; cursor: pointer;
+    transition: all 0.2s; text-transform: uppercase;
+  }
+  .filter-btn:hover { color: var(--text); border-color: var(--border2); }
+  .filter-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(74,158,255,0.08); }
+
+  .date-search-wrap {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(74,158,255,0.05); border: 1px solid rgba(74,158,255,0.25);
+    border-radius: 6px; padding: 6px 14px;
+  }
+  .date-search-wrap label { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 0.12em; white-space: nowrap; }
+  .date-input {
+    font-family: var(--mono); font-size: 11px; color: var(--text);
+    background: transparent; border: none; outline: none;
+    color-scheme: dark; width: 110px;
+  }
+  .date-sep { width: 1px; height: 18px; background: rgba(74,158,255,0.2); }
+  .search-btn {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em;
+    color: #fff; border: none;
+    background: var(--accent); padding: 6px 18px;
+    border-radius: 4px; cursor: pointer; transition: all 0.2s; text-transform: uppercase;
+    font-weight: 600;
+  }
+  .search-btn:hover { background: #5aadff; box-shadow: 0 0 12px rgba(74,158,255,0.4); }
+  .db-badge {
+    font-family: var(--mono); font-size: 8px; letter-spacing: 0.1em;
+    color: var(--ok); border: 1px solid rgba(61,220,132,0.3);
+    background: rgba(61,220,132,0.08); padding: 3px 8px; border-radius: 2px;
+  }
+
+  /* Tarih hata uyarısı */
+  #date-error {
+    display: none;
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
+    font-family: var(--mono); font-size: 10px; letter-spacing: 0.1em;
+    color: var(--danger); background: rgba(239,71,111,0.15);
+    border: 1px solid rgba(239,71,111,0.45); border-radius: 4px;
+    padding: 8px 20px; z-index: 999; white-space: nowrap;
+    animation: popIn 0.2s ease;
+  }
+  @keyframes popIn {
+    from { opacity:0; transform: translateX(-50%) translateY(-8px); }
+    to   { opacity:1; transform: translateX(-50%) translateY(0); }
+  }
+
+  #content {
+    flex: 1; overflow-y: auto;
+    padding: 20px 24px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+
+  #summary-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  .summary-card {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 12px 14px; transition: border-color 0.3s;
+  }
+  .summary-card:hover { border-color: var(--border2); }
+  .sc-label { font-family: var(--mono); font-size: 8px; letter-spacing: 0.14em; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .sc-value { font-family: var(--mono); font-size: 22px; line-height: 1; color: #fff; }
+  .sc-unit  { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 3px; }
+  .sc-sub   { font-family: var(--mono); font-size: 9px; margin-top: 4px; }
+
+  #charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; flex: 1; }
+  .chart-card {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 14px 16px; display: flex; flex-direction: column; gap: 10px;
+    transition: border-color 0.3s; min-height: 220px;
+  }
+  .chart-card:hover { border-color: var(--border2); }
+  .chart-card.full-width { grid-column: 1 / -1; }
+
+  .chart-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .chart-title-wrap { display: flex; flex-direction: column; gap: 3px; }
+  .chart-title { font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; color: #fff; text-transform: uppercase; }
+  .chart-desc  { font-family: var(--mono); font-size: 8px; color: var(--muted); letter-spacing: 0.06em; }
+
+  .chart-stats { display: flex; gap: 16px; align-items: flex-start; }
+  .chart-stat  { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; }
+  .cs-label    { font-family: var(--mono); font-size: 7px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .cs-value    { font-family: var(--mono); font-size: 13px; color: #fff; }
+  .cs-value span { font-size: 8px; color: var(--muted); }
+
+  .chart-body  { flex: 1; position: relative; min-height: 150px; }
+
+  .threshold-legend { display: flex; gap: 16px; flex-wrap: wrap; }
+  .tl-item { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 8px; color: var(--muted); }
+  .tl-line  { width: 16px; height: 1px; flex-shrink: 0; }
+
+  #loading {
+    position: fixed; inset: 0; background: var(--bg);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 16px; z-index: 100;
+  }
+  .loading-text { font-family: var(--mono); font-size: 11px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; }
+  .loading-bar-wrap { width: 200px; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+  .loading-bar { height: 100%; background: var(--accent); border-radius: 1px; animation: loadBar 1.5s ease-in-out infinite; }
+  @keyframes loadBar { 0%{width:0%} 50%{width:80%} 100%{width:100%} }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+  .status-pill { display: inline-block; font-family: var(--mono); font-size: 8px; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 2px; text-transform: uppercase; }
+  .pill-ok     { background: rgba(61,220,132,0.15);  color: var(--ok);     border: 1px solid rgba(61,220,132,0.3); }
+  .pill-warn   { background: rgba(255,209,102,0.15); color: var(--warn);   border: 1px solid rgba(255,209,102,0.3); }
+  .pill-danger { background: rgba(239,71,111,0.15);  color: var(--danger); border: 1px solid rgba(239,71,111,0.3); }
+</style>
+</head>
+<body>
+
+<!-- Hata uyarısı -->
+<div id="date-error"></div>
+
+<!-- Yükleme ekranı -->
+<div id="loading">
+  <div class="loading-text">NOAA Veri Arşivi Yükleniyor...</div>
+  <div class="loading-bar-wrap"><div class="loading-bar"></div></div>
+</div>
+
+<div id="app" style="display:none;">
+
+  <!-- ÜST BAR -->
+  <div id="top-bar">
+    <div class="tb-title">Kütüphane</div>
+    <div class="tb-sep"></div>
+    <div class="tb-info">NOAA SWPC · <span></span> · DSCOVR + ACE</div>
+
+    <!-- TARİH ARAMA -->
+    <div class="tb-sep"></div>
+    <div class="date-search-wrap">
+      <label>Başlangıç:</label>
+      <input type="date" class="date-input" id="date-start" onchange="validateDate('start')">
+      <div class="date-sep"></div>
+      <label>Bitiş:</label>
+      <input type="date" class="date-input" id="date-end" onchange="validateDate('end')">
+      <button class="search-btn" onclick="searchByDate()">ARA</button>
+    </div>
+    <div class="tb-sep"></div>
+    <div class="db-badge" id="db-badge">⬤ VERİTABANI</div>
+
+    <div class="filter-group">
+      <button class="filter-btn active" onclick="setRange(7,this)">7 Gün</button>
+      <button class="filter-btn" onclick="setRange(3,this)">3 Gün</button>
+      <button class="filter-btn" onclick="setRange(1,this)">24 Saat</button>
+    </div>
+  </div>
+
+  <!-- ANA İÇERİK -->
+  <div id="content">
+
+    <div id="summary-row">
+      <div class="summary-card">
+        <div class="sc-label">Dönem Ort. Hız</div>
+        <div class="sc-value" id="s-speed-avg">—</div>
+        <div class="sc-unit">km/s</div>
+        <div class="sc-sub" id="s-speed-badge">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Min Bz (En Tehlikeli)</div>
+        <div class="sc-value" id="s-bz-min">—</div>
+        <div class="sc-unit">nanoTesla</div>
+        <div class="sc-sub" id="s-bz-badge">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Maks Yoğunluk</div>
+        <div class="sc-value" id="s-density-max">—</div>
+        <div class="sc-unit">p/cm³</div>
+        <div class="sc-sub" id="s-density-badge">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Maks Hız</div>
+        <div class="sc-value" id="s-speed-max">—</div>
+        <div class="sc-unit">km/s</div>
+        <div class="sc-sub" id="s-speed-max-time">—</div>
+      </div>
+      <div class="summary-card">
+        <div class="sc-label">Fırtına Sayısı</div>
+        <div class="sc-value" id="s-storm-count">—</div>
+        <div class="sc-unit">olay</div>
+        <div class="sc-sub" id="s-storm-desc">—</div>
+      </div>
+    </div>
+
+    <div id="charts-grid">
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title-wrap">
+            <div class="chart-title">Güneş Rüzgarı Hızı</div>
+            <div class="chart-desc">L1 noktasında ölçülen plazma hızı</div>
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat"><div class="cs-label">Ort</div><div class="cs-value" id="cv-speed-avg">—<span> km/s</span></div></div>
+            <div class="chart-stat"><div class="cs-label">Maks</div><div class="cs-value" id="cv-speed-max">—<span> km/s</span></div></div>
+          </div>
+        </div>
+        <div class="threshold-legend">
+          <div class="tl-item"><div class="tl-line" style="background:var(--warn);"></div>Dikkat (500 km/s)</div>
+          <div class="tl-item"><div class="tl-line" style="background:var(--danger);"></div>Kritik (600 km/s)</div>
+        </div>
+        <div class="chart-body"><canvas id="chart-speed"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title-wrap">
+            <div class="chart-title">Bz Manyetik Alan</div>
+            <div class="chart-desc">Güneye dönen Bz jeomanyetik fırtına tetikler</div>
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat"><div class="cs-label">Ort</div><div class="cs-value" id="cv-bz-avg">—<span> nT</span></div></div>
+            <div class="chart-stat"><div class="cs-label">Min</div><div class="cs-value" id="cv-bz-min">—<span> nT</span></div></div>
+          </div>
+        </div>
+        <div class="threshold-legend">
+          <div class="tl-item"><div class="tl-line" style="background:var(--warn);"></div>Dikkat (-10 nT)</div>
+          <div class="tl-item"><div class="tl-line" style="background:var(--danger);"></div>Kritik (-15 nT)</div>
+        </div>
+        <div class="chart-body"><canvas id="chart-bz"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title-wrap">
+            <div class="chart-title">Proton Yoğunluğu</div>
+            <div class="chart-desc">Yüksek yoğunluk radyasyon riski oluşturur</div>
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat"><div class="cs-label">Ort</div><div class="cs-value" id="cv-density-avg">—<span> p/cm³</span></div></div>
+            <div class="chart-stat"><div class="cs-label">Maks</div><div class="cs-value" id="cv-density-max">—<span> p/cm³</span></div></div>
+          </div>
+        </div>
+        <div class="threshold-legend">
+          <div class="tl-item"><div class="tl-line" style="background:var(--warn);"></div>Dikkat (15 p/cm³)</div>
+          <div class="tl-item"><div class="tl-line" style="background:var(--danger);"></div>Kritik (20 p/cm³)</div>
+        </div>
+        <div class="chart-body"><canvas id="chart-density"></canvas></div>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <div class="chart-title-wrap">
+            <div class="chart-title">Plazma Sıcaklığı</div>
+            <div class="chart-desc">Güneş rüzgarı plazma sıcaklığı</div>
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat"><div class="cs-label">Ort</div><div class="cs-value" id="cv-temp-avg">—<span> ×10³K</span></div></div>
+            <div class="chart-stat"><div class="cs-label">Maks</div><div class="cs-value" id="cv-temp-max">—<span> ×10³K</span></div></div>
+          </div>
+        </div>
+        <div class="chart-body"><canvas id="chart-temp"></canvas></div>
+      </div>
+
+      <div class="chart-card full-width">
+        <div class="chart-header">
+          <div class="chart-title-wrap">
+            <div class="chart-title">Tahmini Kp İndeksi — 7 Günlük Jeomanyetik Aktivite</div>
+            <div class="chart-desc">Newell 2007 formülüyle NOAA verisinden hesaplanan jeomanyetik aktivite tahmini (0=Sakin, 9=Ekstrem)</div>
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat"><div class="cs-label">Ort Kp</div><div class="cs-value" id="cv-kp-avg">—</div></div>
+            <div class="chart-stat"><div class="cs-label">Maks Kp</div><div class="cs-value" id="cv-kp-max">—</div></div>
+          </div>
+        </div>
+        <div class="threshold-legend">
+          <div class="tl-item"><div class="tl-line" style="background:var(--ok);"></div>Sakin (0-3)</div>
+          <div class="tl-item"><div class="tl-line" style="background:var(--warn);"></div>Dikkat (3-5 / G1)</div>
+          <div class="tl-item"><div class="tl-line" style="background:var(--danger);"></div>Fırtına (5+ / G2+)</div>
+        </div>
+        <div class="chart-body" style="min-height:180px;"><canvas id="chart-kp"></canvas></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Bugünün tarihi (max değer) ──
+const TODAY = (() => {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+})();
+
+// ── Tarih doğrulama ──
+function validateDate(which) {
+  const startEl = document.getElementById('date-start');
+  const endEl   = document.getElementById('date-end');
+  const errEl   = document.getElementById('date-error');
+  let msg = '';
+
+  // Sadece gelecek tarih girilince hata ver
+  if (which === 'start' && startEl.value && startEl.value > TODAY) {
+    msg = '⚠ Başlangıç tarihi bugünden ileri olamaz!';
+    startEl.value = TODAY;
+  }
+  if (which === 'end' && endEl.value && endEl.value > TODAY) {
+    msg = '⚠ Bitiş tarihi bugünden ileri olamaz!';
+    endEl.value = TODAY;
+  }
+
+  if (msg) {
+    errEl.textContent = msg;
+    errEl.style.display = 'block';
+    clearTimeout(window._errTimer);
+    window._errTimer = setTimeout(() => { errEl.style.display = 'none'; }, 3000);
+  }
+}
+
+// ── Kp İndeksi Tahmini ──
+function estimateKp(speed, bz, density) {
+  const pressure = 1.67e-6 * density * speed * speed;
+  const bzNeg    = bz < 0 ? Math.abs(bz) : 0;
+  const epsilon  = Math.pow(speed, 1.33) * Math.pow(bzNeg + 0.1, 0.67) * Math.pow(pressure + 0.1, 0.2);
+  let kp = Math.log10(epsilon + 1) * 1.8 - 0.5;
+  if (speed > 600)  kp += (speed - 600) / 300;
+  if (density > 15) kp += (density - 15) / 30;
+  return Math.max(0, Math.min(9, kp));
+}
+
+// ── Grafik oluşturucu ──
+function makeChart(id, label, color, thresholds = [], yMin = null, yMax = null) {
+  const annotations = {};
+  thresholds.forEach((t, i) => {
+    annotations['line' + i] = {
+      type: 'line', yMin: t.val, yMax: t.val,
+      borderColor: t.color, borderWidth: 1, borderDash: [4, 4],
+      label: { display: true, content: t.label, position: 'end', font: { family: 'Share Tech Mono', size: 8 }, color: t.color, backgroundColor: 'transparent' }
+    };
+  });
+
+  return new Chart(document.getElementById(id), {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label, data: [],
+        borderColor: color, borderWidth: 1.5,
+        pointRadius: 0, pointHoverRadius: 3,
+        fill: true,
+        backgroundColor: (ctx) => {
+          const c = ctx.chart.ctx;
+          const g = c.createLinearGradient(0, 0, 0, ctx.chart.height);
+          g.addColorStop(0, color.replace('rgb', 'rgba').replace(')', ', 0.25)'));
+          g.addColorStop(1, color.replace('rgb', 'rgba').replace(')', ', 0.02)'));
+          return g;
+        },
+        tension: 0.3,
+        segment: {
+          borderColor: (ctx) => {
+            const val = ctx.p1.parsed.y;
+            if (thresholds.length >= 2) {
+              const critVal = thresholds.find(t => t.color.includes('ef476f'))?.val;
+              if (critVal !== undefined && val <= critVal) return '#ef476f';
+              const warnVal = thresholds.find(t => t.color.includes('ffd166'))?.val;
+              if (warnVal !== undefined && val <= warnVal) return '#ffd166';
+            }
+            return color;
+          }
+        }
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        annotation: { annotations },
+        tooltip: {
+          backgroundColor: 'rgba(4,4,15,0.95)',
+          titleFont: { family: 'Share Tech Mono', size: 9 },
+          bodyFont: { family: 'Share Tech Mono', size: 9 },
+          borderColor: 'rgba(100,140,255,0.3)', borderWidth: 1,
+          callbacks: {
+            title: (items) => items[0].label,
+            label: (item) => ' ' + item.dataset.label + ': ' + item.parsed.y.toFixed(1)
+          }
+        }
+      },
+      scales: {
+        x: {
+          display: true,
+          grid: { color: 'rgba(100,140,255,0.05)' },
+          ticks: { color: 'rgba(180,200,255,0.35)', font: { family: 'Share Tech Mono', size: 8 }, maxTicksLimit: 14, maxRotation: 0 }
+        },
+        y: {
+          display: true, min: yMin ?? undefined, max: yMax ?? undefined,
+          grid: { color: 'rgba(100,140,255,0.07)' },
+          ticks: { color: 'rgba(180,200,255,0.4)', font: { family: 'Share Tech Mono', size: 8 }, maxTicksLimit: 5, padding: 6 }
+        }
+      }
+    }
+  });
+}
+
+function makeKpChart() {
+  return new Chart(document.getElementById('chart-kp'), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label: 'Kp', data: [], backgroundColor: [], borderColor: [], borderWidth: 0, borderRadius: 2 }]},
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: false },
+        annotation: {
+          annotations: {
+            g1: { type: 'line', yMin: 3, yMax: 3, borderColor: '#ffd166', borderWidth: 1, borderDash: [4,4] },
+            g2: { type: 'line', yMin: 5, yMax: 5, borderColor: '#ef476f', borderWidth: 1, borderDash: [4,4] },
+          }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(4,4,15,0.95)',
+          titleFont: { family: 'Share Tech Mono', size: 9 },
+          bodyFont: { family: 'Share Tech Mono', size: 9 },
+          borderColor: 'rgba(100,140,255,0.3)', borderWidth: 1,
+          callbacks: { label: (item) => ' Kp: ' + item.parsed.y.toFixed(1) + (item.parsed.y >= 5 ? ' ⚠ Fırtına' : item.parsed.y >= 3 ? ' ! Dikkat' : ' ✓ Sakin') }
+        }
+      },
+      scales: {
+        x: { display: true, grid: { color: 'rgba(100,140,255,0.05)' }, ticks: { color: 'rgba(180,200,255,0.35)', font: { family: 'Share Tech Mono', size: 8 }, maxTicksLimit: 14, maxRotation: 0 } },
+        y: { display: true, min: 0, max: 9, grid: { color: 'rgba(100,140,255,0.07)' }, ticks: { color: 'rgba(180,200,255,0.4)', font: { family: 'Share Tech Mono', size: 8 }, stepSize: 3 } }
+      }
+    }
+  });
+}
+
+const charts = {
+  speed:   makeChart('chart-speed',   'Hız',       'rgb(74,158,255)',  [{ val: 500, color: '#ffd166', label: 'DİKKAT' }, { val: 600, color: '#ef476f', label: 'KRİTİK' }], 200, null),
+  bz:      makeChart('chart-bz',      'Bz',        'rgb(159,122,234)', [{ val: -10, color: '#ffd166', label: 'DİKKAT' }, { val: -15, color: '#ef476f', label: 'KRİTİK' }], null, null),
+  density: makeChart('chart-density', 'Yoğunluk',  'rgb(255,140,66)',  [{ val: 15, color: '#ffd166', label: 'DİKKAT' }, { val: 20, color: '#ef476f', label: 'KRİTİK' }], 0, null),
+  temp:    makeChart('chart-temp',    'Sıcaklık',  'rgb(72,207,173)',  [], null, null),
+  kp:      makeKpChart()
+};
+
+let activeRangeDays = 7;
+let allPlasma = [], allMag = [];
+
+function setRange(days, btn) {
+  activeRangeDays = days;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateCharts();
+}
+
+function makeLabel(dateStr) {
+  const d = new Date(dateStr);
+  const mon = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'][d.getUTCMonth()];
+  return d.getUTCDate() + ' ' + mon + ' ' + d.getUTCHours().toString().padStart(2,'0') + ':' + d.getUTCMinutes().toString().padStart(2,'0');
+}
+
+function updateCharts() {
+  const now = Date.now();
+  const ms  = activeRangeDays * 24 * 3600 * 1000;
+  const plasma = allPlasma.filter(r => (now - new Date(r[0]).getTime()) < ms);
+  const mag    = allMag.filter(r    => (now - new Date(r[0]).getTime()) < ms);
+
+  const sample = (arr, max) => arr.length <= max ? arr : arr.filter((_, i) => i % Math.ceil(arr.length / max) === 0);
+  const sp = sample(plasma, 300);
+  const sm = sample(mag, 300);
+
+  const labelsP   = sp.map(r => makeLabel(r[0]));
+  const labelsM   = sm.map(r => makeLabel(r[0]));
+  const speeds    = sp.map(r => parseFloat(r[2])).filter(v => !isNaN(v));
+  const densities = sp.map(r => parseFloat(r[1])).filter(v => !isNaN(v));
+  const temps     = sp.map(r => parseFloat(r[3]) / 1000).filter(v => !isNaN(v));
+  const bzs       = sm.map(r => parseFloat(r[3])).filter(v => !isNaN(v));
+  const kps       = sp.map((r, i) => estimateKp(parseFloat(r[2]), i < sm.length ? parseFloat(sm[i][3]) : 0, parseFloat(r[1])));
+
+  charts.speed.data.labels = labelsP;   charts.speed.data.datasets[0].data = speeds;    charts.speed.update();
+  charts.bz.data.labels    = labelsM;   charts.bz.data.datasets[0].data    = bzs;       charts.bz.update();
+  charts.density.data.labels = labelsP; charts.density.data.datasets[0].data = densities; charts.density.update();
+  charts.temp.data.labels  = labelsP;   charts.temp.data.datasets[0].data  = temps;     charts.temp.update();
+  charts.kp.data.labels = labelsP;
+  charts.kp.data.datasets[0].data = kps;
+  charts.kp.data.datasets[0].backgroundColor = kps.map(k => k >= 5 ? 'rgba(239,71,111,0.75)' : k >= 3 ? 'rgba(255,209,102,0.75)' : 'rgba(61,220,132,0.65)');
+  charts.kp.data.datasets[0].borderColor = kps.map(k => k >= 5 ? '#ef476f' : k >= 3 ? '#ffd166' : '#3ddc84');
+  charts.kp.update();
+
+  const avg = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+  const sAvg = avg(speeds), sMax = Math.max(...speeds);
+  const dMax = Math.max(...densities);
+  const bzMin = Math.min(...bzs), bzAvg = avg(bzs);
+  const kpAvg = avg(kps), kpMax = Math.max(...kps);
+
+  document.getElementById('s-speed-avg').textContent    = Math.round(sAvg);
+  document.getElementById('s-speed-max').textContent    = Math.round(sMax);
+  document.getElementById('s-bz-min').textContent       = bzMin.toFixed(1);
+  document.getElementById('s-density-max').textContent  = dMax.toFixed(1);
+
+  let stormCount = 0, inStorm = false;
+  kps.forEach(k => { if (k >= 5 && !inStorm) { stormCount++; inStorm = true; } if (k < 5) inStorm = false; });
+  document.getElementById('s-storm-count').textContent = stormCount;
+  document.getElementById('s-storm-desc').textContent  = stormCount === 0 ? 'Sakin dönem' : stormCount + ' ayrı olay';
+
+  setBadge('s-speed-badge',   sAvg < 400 ? 'ok' : sAvg < 600 ? 'warn' : 'danger',  sAvg < 400 ? 'Normal' : sAvg < 600 ? 'Yüksek' : 'Kritik');
+  setBadge('s-bz-badge',      bzMin > -5 ? 'ok' : bzMin > -15 ? 'warn' : 'danger', bzMin > -5 ? 'Sakin' : bzMin > -15 ? 'Dikkat' : 'Tehlikeli');
+  setBadge('s-density-badge', dMax < 15  ? 'ok' : dMax < 20  ? 'warn' : 'danger',  dMax < 15  ? 'Normal' : dMax < 20  ? 'Yoğun' : 'Kritik');
+
+  const maxSpeedIdx = speeds.indexOf(sMax);
+  document.getElementById('s-speed-max-time').textContent = maxSpeedIdx >= 0 ? labelsP[maxSpeedIdx] : '—';
+
+  document.getElementById('cv-speed-avg').innerHTML   = Math.round(sAvg) + '<span> km/s</span>';
+  document.getElementById('cv-speed-max').innerHTML   = Math.round(sMax) + '<span> km/s</span>';
+  document.getElementById('cv-bz-avg').innerHTML      = bzAvg.toFixed(1) + '<span> nT</span>';
+  document.getElementById('cv-bz-min').innerHTML      = bzMin.toFixed(1) + '<span> nT</span>';
+  document.getElementById('cv-density-avg').innerHTML = avg(densities).toFixed(1) + '<span> p/cm³</span>';
+  document.getElementById('cv-density-max').innerHTML = dMax.toFixed(1) + '<span> p/cm³</span>';
+  document.getElementById('cv-temp-avg').innerHTML    = avg(temps).toFixed(0) + '<span> ×10³K</span>';
+  document.getElementById('cv-temp-max').innerHTML    = Math.max(...temps).toFixed(0) + '<span> ×10³K</span>';
+  document.getElementById('cv-kp-avg').innerHTML      = kpAvg.toFixed(1);
+  document.getElementById('cv-kp-max').innerHTML      = kpMax.toFixed(1);
+
+}
+
+function setBadge(id, level, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'status-pill pill-' + level;
+  el.textContent = text;
+}
+
+
+async function loadData() {
+  try {
+    const [pRes, mRes] = await Promise.all([
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json'),
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json')
+    ]);
+    allPlasma = (await pRes.json()).slice(1);
+    allMag    = (await mRes.json()).slice(1);
+    updateCharts();
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('app').style.display     = 'flex';
+  } catch(e) {
+    document.getElementById('loading').querySelector('.loading-text').textContent = 'Veri alınamadı — İnternet bağlantısını kontrol edin';
+  }
+}
+
+loadData();
+setInterval(loadData, 300000);
+
+// Sayfa yüklenince tarih inputlarını ayarla ve max = bugün sınırla
+window.addEventListener('load', () => {
+  const startEl = document.getElementById('date-start');
+  const endEl   = document.getElementById('date-end');
+  const week    = new Date(Date.now() - 7*86400000).toISOString().split('T')[0];
+  startEl.value = week;
+  endEl.value   = TODAY;
+  // Gelecek tarih seçilemesin
+  startEl.setAttribute('max', TODAY);
+  endEl.setAttribute('max', TODAY);
+});
+
+// ── SUPABASE ──
+const SUPABASE_URL = 'https://tnhufulrdbfjghdghtlm.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRuaHVmdWxyZGJmamdoZGdodGxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2OTM0MDcsImV4cCI6MjA5MDI2OTQwN30.YsKCIf-ZQFSgpUwSGxSrTo-EcfbRtVrsW-H_0lmDgxA';
+
+async function searchByDate() {
+  const startEl = document.getElementById('date-start');
+  const endEl   = document.getElementById('date-end');
+  const start   = startEl.value;
+  const end     = endEl.value;
+  if (!start || !end) return;
+
+  // Son bir kez doğrula
+  if (start > TODAY || end > TODAY) {
+    validateDate('end');
+    return;
+  }
+
+  const badge = document.getElementById('db-badge');
+  badge.textContent = '⟳ ARANIY0R...';
+  badge.style.color = 'var(--warn)';
+
+  try {
+    const url = `${SUPABASE_URL}/rest/v1/solar_wind_data` +
+      `?created_at=gte.${start}T00:00:00` +
+      `&created_at=lte.${end}T23:59:59` +
+      `&order=created_at.asc&limit=1000`;
+    const res  = await fetch(url, { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } });
+    const data = await res.json();
+
+    if (data.length >= 10) {
+      applyToCharts(
+        data.map(r => r.created_at.slice(0,16).replace('T',' ')),
+        data.map(r => r.speed), data.map(r => r.bz),
+        data.map(r => r.density), data.map(r => r.temperature),
+        data.map(r => r.kp_index)
+      );
+      badge.textContent = `✓ ${data.length} KAYIT`;
+      badge.style.color = 'var(--ok)';
+      return;
+    }
+
+    badge.textContent = '⟳ NOAA...';
+    const [pRes, mRes] = await Promise.all([
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json'),
+      fetch('https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json')
+    ]);
+    const plasma = (await pRes.json()).slice(1);
+    const mag    = (await mRes.json()).slice(1);
+
+    const startMs = new Date(start + 'T00:00:00').getTime();
+    const endMs   = new Date(end   + 'T23:59:59').getTime();
+    const filtered = plasma.filter(r => { const t = new Date(r[0]).getTime(); return t >= startMs && t <= endMs; });
+
+    if (!filtered.length) {
+      updateCharts();
+      badge.textContent = '⬤ VERİTABANI';
+      badge.style.color = 'var(--muted)';
+      return;
+    }
+
+    const labels=[],speeds=[],bzs=[],densities=[],temps=[],kps=[],toSave=[];
+    filtered.forEach(r => {
+      const speed = parseFloat(r[2]), density = parseFloat(r[1]), temp = parseFloat(r[3])/1000;
+      const mRow  = mag.find(m => m[0]===r[0]);
+      const bz    = mRow ? parseFloat(mRow[3]) : 0;
+      if (isNaN(speed)||isNaN(bz)) return;
+      const pressure=1.67e-6*density*speed*speed, bzNeg=bz<0?Math.abs(bz):0;
+      const epsilon=Math.pow(speed,1.33)*Math.pow(bzNeg+0.1,0.67)*Math.pow(pressure+0.1,0.2);
+      let kp=Math.log10(epsilon+1)*1.8-0.5;
+      if(speed>600) kp+=(speed-600)/300;
+      kp=Math.max(0,Math.min(9,kp));
+      labels.push(r[0].slice(0,16).replace('T',' '));
+      speeds.push(speed); bzs.push(bz); densities.push(density);
+      temps.push(parseFloat(temp.toFixed(1))); kps.push(parseFloat(kp.toFixed(2)));
+      toSave.push({ created_at: r[0], speed, bz, density, temperature: parseFloat(temp.toFixed(1)), kp_index: parseFloat(kp.toFixed(2)) });
+    });
+
+    if (toSave.length > 0) {
+      fetch(`${SUPABASE_URL}/rest/v1/solar_wind_data`, {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':`Bearer ${SUPABASE_KEY}`,'Prefer':'return=minimal' },
+        body: JSON.stringify(toSave)
+      });
+    }
+
+    applyToCharts(labels, speeds, bzs, densities, temps, kps);
+    badge.textContent = `✓ ${filtered.length} NOAA KAYDI`;
+    badge.style.color = 'var(--accent)';
+
+  } catch(e) {
+    badge.textContent = '✗ HATA';
+    badge.style.color = 'var(--danger)';
+    updateCharts();
+  }
+}
+
+function applyToCharts(labels, speeds, bzs, densities, temps, kps) {
+  const s = (arr,max) => arr.length<=max?arr:arr.filter((_,i)=>i%Math.ceil(arr.length/max)===0);
+  const sl=s(labels,300),ss=s(speeds,300),sb=s(bzs,300),sd=s(densities,300),st=s(temps,300),sk=s(kps,300);
+
+  // Önce tüm label'ları temizle, sonra yeni verileri ata
+  Object.values(charts).forEach(c => { c.data.labels = []; c.update('none'); });
+
+  charts.speed.data.labels=sl;   charts.speed.data.datasets[0].data=ss;   charts.speed.update();
+  charts.bz.data.labels=sl;      charts.bz.data.datasets[0].data=sb;      charts.bz.update();
+  charts.density.data.labels=sl; charts.density.data.datasets[0].data=sd; charts.density.update();
+  charts.temp.data.labels=sl;    charts.temp.data.datasets[0].data=st;    charts.temp.update();
+  charts.kp.data.labels=sl;
+  charts.kp.data.datasets[0].data=sk;
+  charts.kp.data.datasets[0].backgroundColor=sk.map(k=>k>=5?'rgba(239,71,111,0.75)':k>=3?'rgba(255,209,102,0.75)':'rgba(61,220,132,0.65)');
+  charts.kp.data.datasets[0].borderColor=sk.map(k=>k>=5?'#ef476f':k>=3?'#ffd166':'#3ddc84');
+  charts.kp.update();
+}
+</script>
+</body>
+</html>
